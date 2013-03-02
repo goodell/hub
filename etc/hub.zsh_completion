@@ -1,22 +1,111 @@
-# hub tab-completion script for zsh.
-# This script complements the completion script that ships with git.
+#compdef hub
+
+# Zsh will source this file when attemptin to autoload the "_hub" function,
+# typically on the first attempt to complete the hub command.  We add several
+# functions to the functions table (one for each new hub subcommand), then we
+# redefine the "_hub" function to call "_git" after some other interception.
 #
-# vim: ft=zsh sw=2 ts=2 et
+# This is pretty fragile, if you think about it.  Any number of implementation
+# changes in the "_git" script could cause problems down the road.  It would be
+# better if the stock git completion were just a bit more permissive about how
+# it allowed third-party commands to be added.
 
-# Autoload _git completion functions
-if declare -f _git > /dev/null; then
-  _git
-fi
+(( $+functions[_git-alias] )) ||
+_git-alias () {
+    _arguments \
+        '-s[output shell script suitable for eval]' \
+        '1::shell:(zsh bash csh)'
+}
 
-if declare -f _git_commands > /dev/null; then
-  _hub_commands=(
-    'alias:show shell instructions for wrapping git'
-    'pull-request:open a pull request on GitHub'
-    'fork:fork origin repo on GitHub'
-    'create:create new repo on GitHub for the current project'
-    'browse:browse the project on GitHub'
-    'compare:open GitHub compare view'
-  )
-  # Extend the '_git_commands' function with hub commands
-  eval "$(declare -f _git_commands | sed -e 's/base_commands=(/base_commands=(${_hub_commands} /')"
-fi
+(( $+functions[_git-browse] )) ||
+_git-browse () {
+    _arguments \
+        '-u[user or user/repository]:user or user/repository:' \
+        '::subpage:(wiki commits issues)'
+}
+
+(( $+functions[_git-compare] )) ||
+_git-compare () {
+    _arguments \
+        '-u[user]:user:' \
+        ':[start...]end range:'
+}
+
+(( $+functions[_git-create] )) ||
+_git-create () {
+    _arguments \
+        '::name (REPOSITORY or ORGANIZATION/REPOSITORY):' \
+        '-p[make repository private]' \
+        '-d[description]:description' \
+        '-h[home page]:repository home page URL:_urls'
+}
+
+(( $+functions[_git-fork] )) ||
+_git-fork () {
+    _arguments \
+        '--no-remote[do not add a remote for the new fork]'
+}
+
+(( $+functions[_git-pull-request] )) ||
+_git-pull-request () {
+    _arguments \
+        '-f[force (skip check for local commits)]' \
+        '-b[base]:base ("branch", "owner\:branch", "owner/repo\:branch"):' \
+        '-h[head]:head ("branch", "owner\:branch", "owner/repo\:branch"):' \
+        - set1 \
+            '::title:' \
+        - set2 \
+            '::issue-url:_urls' \
+        - set3 \
+            '-i[issue]:issue number:'
+}
+
+_hub () {
+    # only attempt to intercept the "_git_commands" function once
+    (( $+functions[_hub_orig_git_commands] )) ||
+        {
+            # At this stage in the shell's execution the "_git" function has not
+            # yet been autoloaded, so the "_git_commands" function will not be
+            # defined.  Call it now (with a bogus no-op service to prevent
+            # premature completion) so that we can wrap it.
+            if declare -f _git >& /dev/null ; then
+                _hub_noop () { return 0; }
+                local service=hub_noop
+                _git
+                unfunction _hub_noop
+            fi
+
+            # stash the "real" command for later
+            functions[_hub_orig_git_commands]=$functions[_git_commands]
+
+            # replace it with our own wrapper
+            unfunction _git_commands
+            _git_commands () {
+                local ret=1
+                # call the original routine
+                _call_function ret _hub_orig_git_commands
+
+                # Effectively "append" our hub commands to the behavior of the original
+                # _git_commands function.  Using this wrapper function approach ensures
+                # that we only offer the user the hub subcommands when the user is
+                # actually trying to complete subcommands.
+                hub_commands=(
+                alias:'show shell instructions for wrapping git'
+                pull-request:'open a pull request on GitHub'
+                fork:'fork origin repo on GitHub'
+                create:'create new repo on GitHub for the current project'
+                browse:'browse the project on GitHub'
+                compare:'open GitHub compare view')
+                _describe -t hub-commands 'hub command' hub_commands && ret=0
+
+                return ret
+            }
+        }
+
+    # now perform the actual completion, allowing the "_git" function to call
+    # our replacement "_git_commands" function as needed
+    declare -f _git >& /dev/null && _git
+}
+
+# make sure we actually attempt to complete on the first "tab" from the user
+_hub
