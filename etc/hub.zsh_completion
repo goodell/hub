@@ -79,7 +79,9 @@ _hub () {
             # stash the "real" command for later
             functions[_hub_orig_git_commands]=$functions[_git_commands]
 
-            # replace it with our own wrapper
+            # Replace it with our own wrapper.  This will never get called if
+            # the user has the bash-based completion script installed first in
+            # his/her $fpath (which is OK).
             unfunction _git_commands
             _git_commands () {
                 local ret=1
