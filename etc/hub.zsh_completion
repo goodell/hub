@@ -73,6 +73,7 @@ _hub () {
                 local service=hub_noop
                 _git
                 unfunction _hub_noop
+                unset service
             fi
 
             # stash the "real" command for later
