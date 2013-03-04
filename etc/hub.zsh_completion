@@ -69,10 +69,12 @@ _hub () {
             # defined.  Call it now (with a bogus no-op service to prevent
             # premature completion) so that we can wrap it.
             if declare -f _git >& /dev/null ; then
-                _hub_noop () { return 0; }
+                _hub_noop () { return 0; }       # zsh-provided will call this one
+                __hub_noop_main () { return 0; } # git-provided will call this one
                 local service=hub_noop
                 _git
                 unfunction _hub_noop
+                unfunction __hub_noop_main
                 unset service
             fi
 
