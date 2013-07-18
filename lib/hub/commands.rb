@@ -726,6 +726,25 @@ module Hub
 
       if script
         puts "alias git=hub"
+        if shell == 'zsh'
+          # Some dotfiles packages (e.g., @holmans) "setopt complete_aliases",
+          # which will cause a "git" which has been aliased to "hub" to only
+          # use the "_git" completion.  Attempt to safely circumvent this,
+          # allowing users who actually want this (insane) behavior to opt out
+          # by setting HUB_COMPLETE_ALIASES to any value before eval-ing
+          # "$(hub alias -s)".  This is slightly fragile b/c it depends on the
+          # order of various operations in the user's dotfiles.
+          puts <<-'eot'
+if [[ -o complete_aliases ]] && \
+   declare -f _hub >& /dev/null && \
+   declare -f compdef >& /dev/null && \
+   [[ -n "${HUB_COMPLETE_ALIASES+set}" ]]
+then
+    # use hub completion despite "complete_aliases" setting
+    compdef git=hub
+fi
+          eot
+        end
       else
         profile = case shell
           when 'bash' then '~/.bash_profile'
